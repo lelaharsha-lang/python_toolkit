@@ -1,0 +1,7 @@
+
+https://www.google.com
+https://www.python.org
+https://www.djangoproject.com
+https://httpbin.org/status/200
+https://httpbin.org/status/404
+https://httpbin.org/status/500
