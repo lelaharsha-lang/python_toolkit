@@ -2,6 +2,7 @@ import asyncio
 import httpx
 import random
 import typer
+from pydantic import BaseModel, HttpUrl, ValidationError
 from pathlib import Path
 
 app = typer.Typer()
@@ -32,12 +33,14 @@ async def check_urls(
 
         await asyncio.sleep(delay)
 
-        print(f"{attempt}:{semaphore}")
+        print(f"{attempt:6} | {status:4} | {url}")
 
     return url, None, "failed"
 
 
-async def run_checker(urls: list[str], concurrency: int, retries: int) -> None:
+async def run_checker(
+    validated_urls: list[str], concurrency: int, retries: int
+) -> None:
     semaphore = asyncio.Semaphore(concurrency)
     timeout = httpx.Timeout(10.0)
 
@@ -50,7 +53,7 @@ async def run_checker(urls: list[str], concurrency: int, retries: int) -> None:
         follow_redirects=True,
     ) as client:
         results = await asyncio.gather(
-            *[check_urls(client, url, semaphore, retries) for url in urls]
+            *[check_urls(client, url, semaphore, retries) for url in validated_urls]
         )
         successful = 0
         for url, status, result in results:
@@ -75,15 +78,31 @@ def main(
         if line.strip() and not line.strip().startswith("#")
     ]
 
+    invalid_urls = []
+    validated_urls = []
     if not urls:
         print("file is empty")
 
     if len(urls) > 100:
         print("urls must less than 100")
+    for url in urls:
+        try:
+            validated_data = URLValidator(urls=[url])
+            validated_urls.append(str(validated_data.urls[0]))
+        except ValidationError:
+            invalid_urls.append(url)
+    if invalid_urls:
+        print("invalid_urls:")
+        i = 0
+        for url in invalid_urls:
+            print(f"{i+1:6} : {url}")
+            i += 1
+    asyncio.run(run_checker(validated_urls, concurrency, retries))
 
-    asyncio.run(run_checker(urls, concurrency, retries))
+
+class URLValidator(BaseModel):
+    urls: list[HttpUrl]
 
 
 if __name__ == "__main__":
     app()
-# mocking
